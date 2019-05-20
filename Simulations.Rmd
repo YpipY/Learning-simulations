@@ -1,0 +1,455 @@
+---
+title: "SocKult Exam"
+author: "Simon Moeller Nielsen"
+date: "6 maj 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+setwd('C:/Users/slmoni/Documents/Uni/SocKult/Exam')
+library(tidyverse)
+library(gmodels)
+library(ggplot2)
+library(brms)
+```
+
+
+```{main function}
+n=100
+problemSize=5
+pLearn=0.2
+nLearn=5
+nSim=100
+
+
+### Main learning simulation
+# n is number of agents
+# problemSize is length of the number sequence
+# pLearn is the probablity of learning the correct number
+# nLearn is the number of agents that get to learn each round
+# nSim is the amount of simulations to be run
+
+groupfunction<-function(n,problemSize,pLearn,nLearn,nSim){
+  
+  # Making a vector to save the number of rounds in
+  saved<-vector()
+  
+  # Running nSim number of simulations
+  for (p in c(1:nSim)){
+    
+    # Generating the correct number seqence with length problemSize
+    correct<-c(rbinom(problemSize,1, 0.5))
+    
+    # Making vectors for agents solutions and their scores (how many correct numbers they have)
+    solutions<-vector()
+    score<-vector()
+    
+    # Making a vector of n number of agents
+    agent<-c(1:n)
+    
+    # Setting up a round counter
+    r=0
+    
+    # Generating agents solutions
+    for (i in c(1:n)){
+      solutions<-cbind(solutions,c(rbinom(problemSize,1, 0.5)))
+    }
+    
+    # Learning loop, will run till every agent was the correct answer
+    while ('FALSE' %in% (solutions==correct)){
+      # Counting the rounds
+      r=r+1
+      
+      # Checking answers
+      attempt<-solutions-correct
+      score<-colSums(attempt == 0)
+      
+      # Adding the agents with their scores
+      learners<-cbind(agent,score)
+      learners<-as.data.frame(learners)
+      
+      # Removing the agents with correct seqences
+      learners<-learners[ which(learners[,2]<problemSize),]
+      
+      # Checking if the number of eligible learners is under nLearn and setting nlearn to the number of learners if it is under nLearn
+      # This is to avoid problems with the sample function below
+      if(nrow(learners)<=nLearn){
+        nLearn<-nrow(learners)
+      }
+      
+      # Picking nLearn learners
+      learn<-sample(learners[,1], nLearn, replace = FALSE, prob = NULL)
+      
+      # Learning loop where agents that were picked to learn have pLearn chance of getting assigned the correct number
+      for (l in learn){
+        for(x in c(1:problemSize)){
+          ifelse(solutions[x,l]!=correct[x],
+                 ifelse(rbinom(1,1,pLearn)==1, 
+                      solutions[x,l]<-correct[x], 
+                      solutions[x,l]<-solutions[x,l]),
+                 solutions[x,l]<-solutions[x,l])
+        }
+      }
+    }
+    # Printing the currect simulation round to see how far it is
+    print(p)
+    # Saving the number of round this simulations took to complete
+    saved<-c(saved,r)  
+  }
+  # Returning the vector of round numbers
+  return(saved)
+}
+
+# Running the function
+learningRun<-groupfunction(20,5,0.1,5,9000)
+write.csv(learningRun, file = "sims.csv")
+mean(learningRun)
+test<-ci(learningRun,confidence=0.95)
+sd(learningRun)
+```
+
+```{test of n agents and problemSize}
+### Function to test the effect of number of agents and problem size
+# They say avoid loops in r but loop as this thing of beauty, how can you not like it?
+# Basically the same function with two extra loops that loops 5x5 times over n*1:5 and problemSize*1:5
+# Will output only mean, sd, se and 95% confidence intervals
+
+testfunction<-function(n,problemSize,pLearn,nLearn,nSim){
+  # This part creats the output dataframe
+  full<-data.frame(matrix(0,ncol=7,nrow=25))
+  colnames(full)<-c('n','problemSize','mean','sd','se','cilower', 'ciupper')
+  count=0
+  # setting up the values to be multiplied
+  original=problemSize
+  original2=n
+  # looping over n agents
+  for (b in c(1:5)){
+    n=original2
+    n=n*b
+    
+    #looping over problemSize
+    for (j in c(1:5)){
+      count=count+1
+      problemSize=original
+      problemSize=problemSize*j
+      
+      # The rest is the same function with some added counters to see with n agents and problemSize it is at
+      saved<-vector()
+      
+      for (p in c(1:nSim)){
+        
+        correct<-c(rbinom(problemSize,1, 0.5))
+        solutions<-vector()
+        score<-vector()
+        agent<-c(1:n)
+        
+        r=0
+        
+        for (i in c(1:n)){
+          solutions<-cbind(solutions,c(rbinom(problemSize,1, 0.5)))
+        }
+        
+        while ('FALSE' %in% (solutions==correct)){
+          r=r+1
+          
+          attempt<-solutions-correct
+          score<-colSums(attempt == 0)
+          
+          #saved[,r]<-score
+      
+          learners<-cbind(agent,score)
+          learners<-as.data.frame(learners)
+          
+          learners<-learners[ which(learners[,2]<problemSize),]
+          
+          if(nrow(learners)<=nLearn){
+            nLearn<-nrow(learners)
+          }
+          
+          learn<-sample(learners[,1], nLearn, replace = FALSE, prob = NULL)
+          
+          for (l in learn){
+            for(x in c(1:problemSize)){
+              ifelse(solutions[x,l]!=correct[x],
+                     ifelse(rbinom(1,1,pLearn)==1, 
+                          solutions[x,l]<-correct[x], 
+                          solutions[x,l]<-solutions[x,l]),
+                     solutions[x,l]<-solutions[x,l])
+            }
+          }
+        }
+        print(p)
+        saved<-c(saved,r)  
+      }
+      # Saving the information for the output
+      holder<-ci(saved,confidence=0.95)
+      full[count,1]<-n
+      full[count,2]<-problemSize
+      full[count,3]<-mean(saved)
+      full[count,4]<-sd(saved)
+      full[count,5]<-holder[4]
+      full[count,6]<-holder[2]
+      full[count,7]<-holder[3]
+      print(paste('Number:',count))
+      print(paste('problemSize:',problemSize))
+      print(paste('Agents:',n))
+    } 
+    
+  }
+  
+  return(full)
+}
+
+# Runing the function
+testRun<-testfunction(10,5,0.1,5,100)
+write.csv(testRun, file = "testRun2.csv")
+
+```
+
+```{plot of test of n agents and problemSize}
+testRun<-read.csv('testRun2.csv')
+testRun$problemSize<-as.factor(testRun$problemSize)
+
+ggplot(testRun, aes(x=n, y=mean, color=problemSize)) + 
+    geom_errorbar(aes(ymin=cilower, ymax=ciupper), width=2) +
+    geom_line() +
+    geom_point() +
+    labs(x="Number of Agents",y="Rounds",color = "Seqence Length")
+
+```
+
+```{testing number of sims}
+# I was lazy and just used the main function instead of writing a new loop
+learningRun1<-groupfunction(20,5,0.1,5,1000)
+learningRun2<-groupfunction(20,5,0.1,5,2000)
+learningRun3<-groupfunction(20,5,0.1,5,3000)
+learningRun4<-groupfunction(20,5,0.1,5,4000)
+learningRun5<-groupfunction(20,5,0.1,5,5000)
+learningRun6<-groupfunction(20,5,0.1,5,6000)
+learningRun7<-groupfunction(20,5,0.1,5,7000)
+learningRun8<-groupfunction(20,5,0.1,5,8000)
+learningRun9<-groupfunction(20,5,0.1,5,9000)
+learningRun10<-groupfunction(20,5,0.1,5,10000)
+learningRun12<-groupfunction(20,5,0.1,5,12000)
+learningRun13<-groupfunction(20,5,0.1,5,13000)
+learningRun14<-groupfunction(20,5,0.1,5,14000)
+learningRun15<-groupfunction(20,5,0.1,5,15000)
+
+# Combining them in one dataframe
+simtest<-rbind(ci(learningRun1,confidence=0.95),ci(learningRun2,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun3,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun4,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun5,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun6,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun7,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun8,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun9,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun10,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun11,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun12,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun13,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun14,confidence=0.95))
+simtest<-rbind(simtest,ci(learningRun15,confidence=0.95))
+
+simtest<-cbind(sims=c(1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,11000,12000,13000,14000,15000),simtest)
+simtest<-as.data.frame(simtest)
+colnames(simtest)<-c('sims','mean','cilower', 'ciupper','se')
+```
+
+```{plot number of sims}
+ggplot(simtest, aes(x=sims, y=mean)) + 
+    geom_errorbar(aes(ymin=cilower, ymax=ciupper), width=2) +
+    geom_line() +
+    geom_point() +
+    labs(x="Number of Simulations",y="Rounds")
+```
+
+```{linear learning function}
+### Linear learning function
+# Same as the main function but taking an a and b value of the linear function
+# a is the learning parameter (e.g. -0.01)
+# b is the intercept (e.g. 1)
+
+linearfunction<-function(a,b,n,problemSize,nSim){
+  full<-data.frame(matrix(0,ncol=7,nrow=10))
+  colnames(full)<-c('nLearn','pLearn','mean','sd','se','cilower', 'ciupper')
+  
+  savedfull<-data.frame(matrix(0,ncol=2,nrow=0))
+  colnames(savedfull)<-c('nLearn','saved')
+  
+  for (k in c(1:10)){
+    nLearn=5*k
+    nLearntrue=nLearn
+    pLearn=nLearn*a+b
+    
+    # Making a vector to save the number of rounds in
+    saved<-vector()
+    
+    # Running nSim number of simulations
+    for (p in c(1:nSim)){
+      
+      # Generating the correct number seqence with length problemSize
+      correct<-c(rbinom(problemSize,1, 0.5))
+      
+      # Making vectors for agents solutions and their scores (how many correct numbers they have)
+      solutions<-vector()
+      score<-vector()
+      
+      # Making a vector of n number of agents
+      agent<-c(1:n)
+      
+      # Setting up a round counter
+      r=0
+      
+      # Generating agents solutions
+      for (i in c(1:n)){
+        solutions<-cbind(solutions,c(rbinom(problemSize,1, 0.5)))
+      }
+      
+      # Learning loop, will run till every agent was the correct answer
+      while ('FALSE' %in% (solutions==correct)){
+        # Counting the rounds
+        r=r+1
+        
+        # Checking answers
+        attempt<-solutions-correct
+        score<-colSums(attempt == 0)
+        
+        # Adding the agents with their scores
+        learners<-cbind(agent,score)
+        learners<-as.data.frame(learners)
+        
+        # Removing the agents with correct seqences
+        learners<-learners[ which(learners[,2]<problemSize),]
+        
+        # Checking if the number of eligible learners is under nLearn and setting nlearn to the number of learners if it is under
+        # nLearn
+        # This is to avoid problems with the sample function below
+        if(nrow(learners)<=nLearn){
+          nLearn<-nrow(learners)
+        }
+        
+        # Picking nLearn learners
+        learn<-sample(learners[,1], nLearn, replace = FALSE, prob = NULL)
+        
+        # Learning loop where agents that were picked to learn have pLearn chance of getting assigned the correct number
+        for (l in learn){
+          for(x in c(1:problemSize)){
+            ifelse(solutions[x,l]!=correct[x],
+                   ifelse(rbinom(1,1,pLearn)==1, 
+                        solutions[x,l]<-correct[x], 
+                        solutions[x,l]<-solutions[x,l]),
+                   solutions[x,l]<-solutions[x,l])
+          }
+        }
+      }
+      # Printing the currect simulation round to see how far it is
+      print(p)
+      # Saving the number of round this simulations took to complete
+      saved<-c(saved,r)  
+    }
+    # Saving the information for the output
+    saved<-cbind(nLearn=rep(nLearntrue,nSim),saved)
+    savedfull<-rbind(savedfull,saved)
+    
+    holder<-ci(saved,confidence=0.95)
+    full[k,1]<-nLearntrue
+    full[k,2]<-pLearn
+    full[k,3]<-mean(saved)
+    full[k,4]<-sd(saved)
+    full[k,5]<-holder[4]
+    full[k,6]<-holder[2]
+    full[k,7]<-holder[3]
+    
+    
+  }
+  out <- list(savedfull,full)
+  # Returning the vector of round numbers
+  return(out)
+}
+
+
+# Running the function for a -0.005, -0.010 and -0.015 with an intercept of 1
+linear3<-linearfunction(-0.005,1,50,10,10000)
+linear4<-linearfunction(-0.010,1,50,10,10000)
+linear5<-linearfunction(-0.015,1,50,10,10000)
+```
+
+```{plot linear learning function}
+data<-as.data.frame(linear3[2])
+data<-cbind(P=c(rep(-0.005,10)),data)
+data1<-as.data.frame(linear4[2])
+data1<-cbind(P=c(rep(-0.010,10)),data1)
+data2<-as.data.frame(linear5[2])
+data2<-cbind(P=c(rep(-0.015,10)),data2)
+data<-rbind(data,data1)
+data<-rbind(data,data2)
+data$P<-as.factor(data$P)
+
+ggplot(data, aes(x=nLearn, y=mean, color=P)) + 
+    geom_errorbar(aes(ymin=cilower, ymax=ciupper), width=2) +
+    geom_line() +
+    geom_point() +
+    labs(x="Number of Learners",y="Rounds",color = "alpha")
+
+1+50*-0.015
+```
+
+```{Baysian models}
+data<-as.data.frame(linear4[1])
+model <- bf(saved ~ 1 + nLearn)
+
+get_prior(model,data)
+
+prior <- c(prior(normal( 200, 1000 ), class='Intercept'), 
+           prior(normal( 0 , 100), class='b',  coef='nLearn'),
+           prior(normal( 0 , 100 ), class='sigma'))
+
+prior_verb <- brm(model, data, prior = prior, sample_prior = 'only')
+pp_check(prior_verb)
+
+linearmodel1 <- brm(model, data, prior = prior, sample_prior = T)
+
+summary(linearmodel)
+
+marginal_effects(linearmodel1)
+
+
+data<-as.data.frame(linear5[1])
+model <- bf(saved ~ 1 + nLearn+ I(nLearn^2))
+
+get_prior(model,data)
+
+prior <- c(prior(normal( 200, 1000 ), class='Intercept'), 
+           prior(normal( 0 , 100), class='b',  coef='nLearn'),
+           prior(normal( 0 , 100), class='b',  coef='InLearnE2'),
+           prior(normal( 0 , 100 ), class='sigma'))
+
+cubicmodel2 <- brm(model, data, prior = prior, sample_prior = T)
+
+summary(cubicmodel2)
+marginal_effects(cubicmodel2)
+
+?waic
+waic(linearmodel,pointwise = TRUE)
+waic(linearmodel,cubicmodel,pointwise = TRUE)
+waic(linearmodel1,cubicmodel1,pointwise = TRUE)
+waic(linearmodel2,cubicmodel2,pointwise = TRUE)
+
+####
+
+data<-as.data.frame(linear3[1])
+model <- bf(saved ~ 1 + exp(nLearn))
+
+get_prior(model,data)
+
+prior <- c(prior(normal( 200, 1000 ), class='Intercept'), 
+           prior(normal( 0 , 100), class='b',  coef='expnLearn'),
+           prior(normal( 0 , 100 ), class='sigma'))
+
+expmodel <- brm(model, data, prior = prior, sample_prior = T)
+
+summary(cubicmodel2)
+marginal_effects(cubicmodel2)
+
+```
