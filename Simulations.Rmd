@@ -373,6 +373,8 @@ linearfunction<-function(a,b,n,problemSize,nSim){
 linear3<-linearfunction(-0.005,1,50,10,10000)
 linear4<-linearfunction(-0.010,1,50,10,10000)
 linear5<-linearfunction(-0.015,1,50,10,10000)
+
+
 ```
 
 ```{plot linear learning function}
@@ -391,65 +393,74 @@ ggplot(data, aes(x=nLearn, y=mean, color=P)) +
     geom_line() +
     geom_point() +
     labs(x="Number of Learners",y="Rounds",color = "alpha")
-
-1+50*-0.015
 ```
 
 ```{Baysian models}
-data<-as.data.frame(linear4[1])
+# Linear model
 model <- bf(saved ~ 1 + nLearn)
 
 get_prior(model,data)
-
 prior <- c(prior(normal( 200, 1000 ), class='Intercept'), 
            prior(normal( 0 , 100), class='b',  coef='nLearn'),
            prior(normal( 0 , 100 ), class='sigma'))
 
+# Checking priors
 prior_verb <- brm(model, data, prior = prior, sample_prior = 'only')
 pp_check(prior_verb)
 
+data<-as.data.frame(linear3[1])
+linearmodel <- brm(model, data, prior = prior, sample_prior = T)
+data<-as.data.frame(linear4[1])
 linearmodel1 <- brm(model, data, prior = prior, sample_prior = T)
-
-summary(linearmodel)
-
-marginal_effects(linearmodel1)
-
-
 data<-as.data.frame(linear5[1])
+linearmodel2 <- brm(model, data, prior = prior, sample_prior = T)
+
+
+# Cubic model
 model <- bf(saved ~ 1 + nLearn+ I(nLearn^2))
-
 get_prior(model,data)
-
 prior <- c(prior(normal( 200, 1000 ), class='Intercept'), 
            prior(normal( 0 , 100), class='b',  coef='nLearn'),
            prior(normal( 0 , 100), class='b',  coef='InLearnE2'),
            prior(normal( 0 , 100 ), class='sigma'))
 
+data<-as.data.frame(linear3[1])
 cubicmodel2 <- brm(model, data, prior = prior, sample_prior = T)
+data<-as.data.frame(linear4[1])
+cubicmodel2 <- brm(model, data, prior = prior, sample_prior = T)
+data<-as.data.frame(linear5[1])
 
-summary(cubicmodel2)
-marginal_effects(cubicmodel2)
-
-?waic
 waic(linearmodel,pointwise = TRUE)
 waic(linearmodel,cubicmodel,pointwise = TRUE)
 waic(linearmodel1,cubicmodel1,pointwise = TRUE)
 waic(linearmodel2,cubicmodel2,pointwise = TRUE)
 
-####
 
-data<-as.data.frame(linear3[1])
+# Exponetial model
 model <- bf(saved ~ 1 + exp(nLearn))
-
 get_prior(model,data)
-
 prior <- c(prior(normal( 200, 1000 ), class='Intercept'), 
            prior(normal( 0 , 100), class='b',  coef='expnLearn'),
            prior(normal( 0 , 100 ), class='sigma'))
 
+data<-as.data.frame(linear3[1])
 expmodel <- brm(model, data, prior = prior, sample_prior = T)
+data<-as.data.frame(linear4[1])
+expmodel1 <- brm(model, data, prior = prior, sample_prior = T)
+data<-as.data.frame(linear5[1])
+expmodel2 <- brm(model, data, prior = prior, sample_prior = T)
 
-summary(cubicmodel2)
-marginal_effects(cubicmodel2)
+# waic estimates
+waic(linearmodel,cubicmodel,pointwise = TRUE)
+waic(linearmodel1,cubicmodel1,pointwise = TRUE)
+waic(linearmodel2,cubicmodel2,pointwise = TRUE)
 
+# waic's for all models
+waic(linearmodel,cubicmodel,expmodel,pointwise = TRUE)
+waic(linearmodel1,cubicmodel1,expmodel1,pointwise = TRUE)
+waic(linearmodel2,cubicmodel2,expmodel1,pointwise = TRUE)
+```
+
+```{Saving stuff}
+write.csv(simtest, file = "simtest")
 ```
