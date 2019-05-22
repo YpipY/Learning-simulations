@@ -450,6 +450,8 @@ expmodel1 <- brm(model, data, prior = prior, sample_prior = T)
 data<-as.data.frame(linear5[1])
 expmodel2 <- brm(model, data, prior = prior, sample_prior = T)
 
+
+
 # waic estimates
 waic(linearmodel,cubicmodel,pointwise = TRUE)
 waic(linearmodel1,cubicmodel1,pointwise = TRUE)
