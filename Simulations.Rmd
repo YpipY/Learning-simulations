@@ -80,6 +80,11 @@ groupfunction<-function(n,problemSize,pLearn,nLearn,nSim){
       # Picking nLearn learners
       learn<-sample(learners[,1], nLearn, replace = FALSE, prob = NULL)
       
+      # If there is only one learner left, that one is picked, this is due to issues with the sample function
+      if (nrow(learners)==1){
+          learn<-learners[,1]
+      }
+      
       # Learning loop where agents that were picked to learn have pLearn chance of getting assigned the correct number
       for (l in learn){
         for(x in c(1:problemSize)){
@@ -167,6 +172,10 @@ testfunction<-function(n,problemSize,pLearn,nLearn,nSim){
           }
           
           learn<-sample(learners[,1], nLearn, replace = FALSE, prob = NULL)
+          
+          if (nrow(learners)==1){
+          learn<-learners[,1]
+          }
           
           for (l in learn){
             for(x in c(1:problemSize)){
@@ -269,6 +278,12 @@ ggplot(simtest, aes(x=sims, y=mean)) +
 # Same as the main function but taking an a and b value of the linear function
 # a is the learning parameter (e.g. -0.01)
 # b is the intercept (e.g. 1)
+a=-0.005
+b=1
+n=50
+problemSize=10
+nSim=10
+k=5
 
 linearfunction<-function(a,b,n,problemSize,nSim){
   full<-data.frame(matrix(0,ncol=7,nrow=10))
@@ -281,6 +296,8 @@ linearfunction<-function(a,b,n,problemSize,nSim){
     nLearn=5*k
     nLearntrue=nLearn
     pLearn=nLearn*a+b
+    
+    print(nLearn)
     
     # Making a vector to save the number of rounds in
     saved<-vector()
@@ -311,6 +328,8 @@ linearfunction<-function(a,b,n,problemSize,nSim){
         # Counting the rounds
         r=r+1
         
+        nLearn=nLearntrue
+        
         # Checking answers
         attempt<-solutions-correct
         score<-colSums(attempt == 0)
@@ -322,17 +341,24 @@ linearfunction<-function(a,b,n,problemSize,nSim){
         # Removing the agents with correct seqences
         learners<-learners[ which(learners[,2]<problemSize),]
         
-        # Checking if the number of eligible learners is under nLearn and setting nlearn to the number of learners if it is under
-        # nLearn
+        # Checking if the number of eligible learners is under nLearn and setting nlearn to the number of learners if it is under nLearn
         # This is to avoid problems with the sample function below
-        if(nrow(learners)<=nLearn){
+        
+        if(nrow(learners)<nLearn){
           nLearn<-nrow(learners)
         }
         
+       
+        #if (nLearn!=0){
         # Picking nLearn learners
         learn<-sample(learners[,1], nLearn, replace = FALSE, prob = NULL)
         
+        if (nrow(learners)==1){
+          learn<-learners[,1]
+        }
+        
         # Learning loop where agents that were picked to learn have pLearn chance of getting assigned the correct number
+        
         for (l in learn){
           for(x in c(1:problemSize)){
             ifelse(solutions[x,l]!=correct[x],
@@ -340,18 +366,17 @@ linearfunction<-function(a,b,n,problemSize,nSim){
                         solutions[x,l]<-correct[x], 
                         solutions[x,l]<-solutions[x,l]),
                    solutions[x,l]<-solutions[x,l])
+            }
           }
-        }
+       # }
       }
       # Printing the currect simulation round to see how far it is
-      print(p)
+      #print(p)
       # Saving the number of round this simulations took to complete
-      saved<-c(saved,r)  
+      
+      saved<-c(saved,r) 
     }
     # Saving the information for the output
-    saved<-cbind(nLearn=rep(nLearntrue,nSim),saved)
-    savedfull<-rbind(savedfull,saved)
-    
     holder<-ci(saved,confidence=0.95)
     full[k,1]<-nLearntrue
     full[k,2]<-pLearn
@@ -361,24 +386,31 @@ linearfunction<-function(a,b,n,problemSize,nSim){
     full[k,6]<-holder[2]
     full[k,7]<-holder[3]
     
-    
+    saved<-cbind(nLearn=rep(nLearntrue,nSim),saved)
+    savedfull<-rbind(savedfull,saved)
   }
   out <- list(savedfull,full)
   # Returning the vector of round numbers
   return(out)
 }
-
+linear9<-linearfunction(0,0.6,50,10,100)
 
 # Running the function for a -0.005, -0.010 and -0.015 with an intercept of 1
 linear3<-linearfunction(-0.005,1,50,10,10000)
 linear4<-linearfunction(-0.010,1,50,10,10000)
 linear5<-linearfunction(-0.015,1,50,10,10000)
 
+linear6<-linearfunction(-0.001,0.5,50,10,10000)
+
+linear7<-linearfunction(-0.0001,1,50,10,10000)
+linear8<-linearfunction(0,1,50,10,10000)
+
+
 
 ```
 
 ```{plot linear learning function}
-data<-as.data.frame(linear3[2])
+data<-as.data.frame(linear9[2])
 data<-cbind(P=c(rep(-0.005,10)),data)
 data1<-as.data.frame(linear4[2])
 data1<-cbind(P=c(rep(-0.010,10)),data1)
@@ -388,7 +420,7 @@ data<-rbind(data,data1)
 data<-rbind(data,data2)
 data$P<-as.factor(data$P)
 
-ggplot(data, aes(x=nLearn, y=mean, color=P)) + 
+ggplot(data, aes(x=nLearn, y=mean)) + 
     geom_errorbar(aes(ymin=cilower, ymax=ciupper), width=2) +
     geom_line() +
     geom_point() +
@@ -464,5 +496,5 @@ waic(linearmodel2,cubicmodel2,expmodel1,pointwise = TRUE)
 ```
 
 ```{Saving stuff}
-write.csv(simtest, file = "simtest")
+write.csv(linear6, file = "linear6")
 ```
